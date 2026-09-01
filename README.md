@@ -15,17 +15,6 @@ desde Open Library con solo el ISBN.
 | **Infraestructura** | Docker Compose (app + Postgres + MailHog + frontend) |
 | **Pruebas** | **107 pruebas**: JUnit 5, Mockito, MockMvc, GreenMail, MockWebServer |
 
-> **Otros documentos, según lo que necesites:**
-> - [`DOCUMENTACION.md`](DOCUMENTACION.md) — cómo está hecho por dentro: qué tecnología se usó en
->   cada parte, qué hace cada archivo y cómo viaja una petición desde el navegador hasta la base
->   de datos y de vuelta.
-> - [`GUIA-API.md`](GUIA-API.md) — cómo **explicar la API en voz alta** frente a Swagger UI:
->   guion de demo, referencia de los 20 endpoints y catálogo de errores.
-> - [`COMANDOS.md`](COMANDOS.md) — **todos los comandos** para levantarlo, probarlo y apagarlo.
-> - [`PLAN-DE-PRUEBAS.md`](PLAN-DE-PRUEBAS.md) — guion de **20 minutos para probarlo todo a mano**,
->   paso a paso y con lo que debes ver en cada uno (incluye cómo provocar el bloqueo y los correos
->   programados sin esperar 14 días).
-
 ---
 
 ## 1. Levantarlo (un solo comando)
@@ -39,7 +28,7 @@ docker compose up --build
 |---|---|---|
 | **Frontend** | http://localhost:5173 | La aplicación |
 | **API** | http://localhost:8080 | Backend REST |
-| **Swagger UI** | http://localhost:8080/swagger-ui.html | Documentación viva de la API — ver [`GUIA-API.md`](GUIA-API.md) |
+| **Swagger UI** | http://localhost:8080/swagger-ui.html | Documentación viva de la API |
 | **MailHog** | http://localhost:8025 | **Aquí se ven los correos que envía la aplicación** |
 | **PostgreSQL** | localhost:5432 | Base de datos |
 
