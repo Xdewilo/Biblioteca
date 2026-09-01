@@ -1,0 +1,224 @@
+<!-- by Jeremy Posada -->
+<div appReveal=".card" [revealKey]="revealKey()">
+  <header class="head">
+    <h1 class="head__title">Mis préstamos</h1>
+    <p class="head__sub">Lo que tienes ahora, lo que estás esperando y lo que ya devolviste.</p>
+  </header>
+
+  @if (auth.user(); as user) {
+    @if (user.blocked) {
+      <app-note tone="bad">
+        Tu cuenta está bloqueada hasta el {{ fechaHora(user.blockedUntil) }}{{ user.blockedReason ? ' — ' + user.blockedReason : '' }}.
+        Un administrador puede levantarlo antes.
+      </app-note>
+    }
+  }
+
+  @if (listos().length === 1) {
+    <app-note tone="ok" icon="bookmark">
+      <strong>«{{ listos()[0].bookTitle }}»</strong> te está esperando. Recógelo abajo antes del
+      {{ fechaHora(listos()[0].holdExpiresAt) }} o el turno pasará a la siguiente persona.
+    </app-note>
+  } @else if (listos().length > 1) {
+    <app-note tone="ok" icon="bookmark">
+      Tienes {{ listos().length }} libros guardados a tu nombre. Recógelos abajo antes de que venza el plazo.
+    </app-note>
+  }
+
+  <!-- ------------------------------------------------------- en tus manos -->
+  <section class="card card--gap">
+    <div class="card__in">
+      <h2 class="card__h">
+        <app-icon name="loans" [size]="18" />
+        En tus manos
+        @if (activos().length > 0) {
+          <app-chip tone="mute">{{ activos().length }}</app-chip>
+        }
+      </h2>
+
+      @if (prestamos.loading()) {
+        <app-loading />
+      } @else if (prestamos.error(); as error) {
+        <app-failed [message]="error" (retry)="prestamos.recargar()" />
+      } @else if (activos().length === 0) {
+        <app-empty
+          icon="loans"
+          message="No tienes libros prestados ahora mismo."
+          hint="Pide uno desde el catálogo: tienes 14 días para devolverlo."
+        />
+      } @else {
+        <div class="scroll-x">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Libro</th>
+                <th>Prestado</th>
+                <th>Devolver antes del</th>
+                <th>Plazo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of activos(); track p.id) {
+                <tr>
+                  <td>
+                    <div class="book-cell">
+                      <app-cover [url]="p.bookCoverUrl" [isbn]="p.bookIsbn" [title]="p.bookTitle" size="thumb" />
+                      <div>
+                        <strong class="serif">{{ p.bookTitle }}</strong>
+                        <div class="soft small">{{ p.bookAuthor }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="nowrap">{{ fecha(p.loanDate) }}</td>
+                  <td class="nowrap">{{ fecha(p.dueDate) }}</td>
+                  <td>
+                    @if (p.overdue) {
+                      <app-chip tone="bad">Vencido · {{ p.daysOverdue }} {{ p.daysOverdue === 1 ? 'día' : 'días' }}</app-chip>
+                    } @else {
+                      <app-chip [tone]="tonoPlazo(p)">{{ venceEn(p.dueDate) }}</app-chip>
+                    }
+                  </td>
+                  <td>
+                    <div class="acts">
+                      <button type="button" class="btn btn--main btn--s" [disabled]="ocupado() === p.id" (click)="devolver(p)">
+                        @if (ocupado() === p.id) {
+                          <span class="spin" aria-hidden="true"></span>
+                        }
+                        Devolver
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------- lista de espera -->
+  <section class="card card--gap">
+    <div class="card__in">
+      <h2 class="card__h">
+        <app-icon name="queue" [size]="18" />
+        Lista de espera
+        @if (enEspera().length > 0) {
+          <app-chip tone="mute">{{ enEspera().length }}</app-chip>
+        }
+      </h2>
+
+      @if (reservas.loading()) {
+        <app-loading />
+      } @else if (reservas.error(); as error) {
+        <app-failed [message]="error" (retry)="reservas.recargar()" />
+      } @else if (enEspera().length === 0) {
+        <app-empty
+          icon="queue"
+          message="No estás esperando ningún libro."
+          hint="Si un libro del catálogo está prestado, pulsa «Esperar turno» y te avisamos por correo."
+        />
+      } @else {
+        <div class="scroll-x">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Libro</th>
+                <th>Solicitado</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of enEspera(); track r.id) {
+                <tr [class.tbl__row--hi]="r.readyToConfirm">
+                  <td><strong class="serif">{{ r.bookTitle }}</strong></td>
+                  <td class="nowrap">{{ fechaHora(r.requestedAt) }}</td>
+                  <td>
+                    @if (r.readyToConfirm) {
+                      <app-chip tone="ok" [pulse]="true">Te está esperando</app-chip>
+                      @if (r.holdExpiresAt) {
+                        <div class="faint tiny">Guardado hasta el {{ fechaHora(r.holdExpiresAt) }}</div>
+                      }
+                    } @else {
+                      <app-chip tone="info">En fila{{ r.queuePosition ? ' · puesto ' + r.queuePosition : '' }}</app-chip>
+                    }
+                  </td>
+                  <td>
+                    <div class="acts">
+                      @if (r.readyToConfirm) {
+                        <button type="button" class="btn btn--main btn--s" [disabled]="ocupado() === r.id" (click)="confirmar(r)">
+                          @if (ocupado() === r.id) {
+                            <span class="spin" aria-hidden="true"></span>
+                          } @else {
+                            <app-icon name="check" [size]="15" />
+                          }
+                          Recogerlo
+                        </button>
+                      }
+                      <button type="button" class="btn btn--bare btn--s" [disabled]="ocupado() === r.id" (click)="cancelar(r)">
+                        Salir de la fila
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------- historial -->
+  <section class="card">
+    <div class="card__in">
+      <h2 class="card__h">
+        <app-icon name="check" [size]="18" />
+        Ya devueltos
+        @if (historial().length > 0) {
+          <app-chip tone="mute">{{ historial().length }}</app-chip>
+        }
+      </h2>
+
+      @if (historial().length === 0) {
+        <app-empty message="Todavía no has devuelto ningún libro." />
+      } @else {
+        <div class="scroll-x">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Libro</th>
+                <th>Fecha límite</th>
+                <th>Devuelto</th>
+                <th>Resultado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of historial(); track p.id) {
+                <tr>
+                  <td>
+                    <div class="book-cell">
+                      <app-cover [url]="p.bookCoverUrl" [isbn]="p.bookIsbn" [title]="p.bookTitle" size="thumb" />
+                      <span class="serif">{{ p.bookTitle }}</span>
+                    </div>
+                  </td>
+                  <td class="nowrap">{{ fecha(p.dueDate) }}</td>
+                  <td class="nowrap">{{ fecha(p.returnDate) }}</td>
+                  <td>
+                    @if (p.returnedLate) {
+                      <app-chip tone="bad">Con atraso</app-chip>
+                    } @else {
+                      <app-chip tone="mute">A tiempo</app-chip>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+</div>
