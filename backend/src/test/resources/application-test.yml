@@ -1,0 +1,50 @@
+# Perfil de pruebas: H2 en memoria y SMTP embebido (GreenMail).
+# Flyway se desactiva porque las migraciones son SQL de PostgreSQL;
+# el esquema de test lo genera Hibernate a partir de las mismas entidades.
+spring:
+  datasource:
+    url: jdbc:h2:mem:anaquel;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+  mail:
+    host: 127.0.0.1
+    port: 3025
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+app:
+  jwt:
+    secret: clave-de-pruebas-anaquel-con-mas-de-32-bytes
+    expiration-minutes: 60
+  seed:
+    enabled: false
+  mail:
+    from: hola@anaquel.app
+    from-name: Anaquel
+    app-url: http://localhost:5173
+  openlibrary:
+    base-url: http://localhost:9
+    timeout-ms: 500
+  # Los cron se apagan en pruebas: los schedulers se invocan a mano donde toca.
+  scheduling:
+    reminder-cron: "-"
+    overdue-cron: "-"
+    expire-holds-cron: "-"
+
+logging:
+  level:
+    com.jposada.anaquel: INFO
+    org.hibernate: WARN
