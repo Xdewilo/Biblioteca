@@ -1,0 +1,10 @@
+<!-- by Jeremy Posada -->
+<div class="card stat" [class]="tone() ? 'card stat stat--' + tone() : 'card stat'">
+  <div class="stat__k">{{ label() }}</div>
+  <div class="stat__v" [class]="tone() ? 'stat__v stat__v--' + tone() : 'stat__v'" [appCountUp]="value()">
+    {{ value() }}
+  </div>
+  @if (hint()) {
+    <div class="stat__hint">{{ hint() }}</div>
+  }
+</div>

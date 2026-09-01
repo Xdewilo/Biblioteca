@@ -1,0 +1,52 @@
+<!-- by Jeremy Posada -->
+<div class="shell">
+  <aside class="aside">
+    <div class="brand">
+      <div class="brand__mark">A</div>
+      <div>
+        <div class="brand__name">Anaquel</div>
+        <div class="brand__sub">Préstamos</div>
+      </div>
+    </div>
+
+    <nav class="nav" aria-label="Principal">
+      <a class="nav__link" routerLink="/catalogo" routerLinkActive="nav__link--on">
+        <span class="nav__icon"><app-icon name="shelf" /></span>
+        <span class="nav__text">Catálogo</span>
+      </a>
+      <a class="nav__link" routerLink="/mis-prestamos" routerLinkActive="nav__link--on">
+        <span class="nav__icon"><app-icon name="loans" /></span>
+        <span class="nav__text">Mis préstamos</span>
+      </a>
+      @if (auth.isAdmin()) {
+        <a class="nav__link" routerLink="/admin" routerLinkActive="nav__link--on">
+          <span class="nav__icon"><app-icon name="chart" /></span>
+          <span class="nav__text">Administración</span>
+        </a>
+      }
+    </nav>
+
+    <div class="aside__foot">
+      @if (auth.user()?.blocked) {
+        <div class="aside__flag"><span class="chip chip--bad">Cuenta bloqueada</span></div>
+      }
+      <div class="who">
+        <div class="who__avatar">{{ iniciales(auth.user()?.name) }}</div>
+        <div class="who__text">
+          <div class="who__name">{{ auth.user()?.name }}</div>
+          <div class="who__role">{{ rolLegible() }}</div>
+        </div>
+      </div>
+      <button type="button" class="btn btn--line btn--s btn--full aside__out" (click)="salir()">
+        <app-icon name="logout" [size]="16" />
+        <span class="nav__text">Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="wrap">
+      <router-outlet />
+    </div>
+  </main>
+</div>

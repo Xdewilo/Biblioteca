@@ -1,0 +1,16 @@
+<!-- by Jeremy Posada -->
+<div class="seg" role="radiogroup" [attr.aria-label]="label()">
+  <span class="seg__thumb" aria-hidden="true"></span>
+  @for (o of options(); track o.value) {
+    <button
+      type="button"
+      role="radio"
+      class="seg__opt"
+      [class.seg__opt--on]="o.value === value()"
+      [attr.aria-checked]="o.value === value()"
+      (click)="elegir(o.value)"
+    >
+      {{ o.label }}
+    </button>
+  }
+</div>

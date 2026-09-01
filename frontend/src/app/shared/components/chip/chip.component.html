@@ -1,0 +1,9 @@
+<!-- by Jeremy Posada -->
+<span [class]="clases()">
+  @if (status()) {
+    <span class="chip__dot"></span>
+    {{ etiqueta() }}
+  } @else {
+    <ng-content />
+  }
+</span>

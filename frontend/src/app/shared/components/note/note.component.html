@@ -1,0 +1,7 @@
+<!-- by Jeremy Posada -->
+<div class="note note--{{ tone() }}" [attr.role]="role()">
+  @if (icono(); as icono) {
+    <app-icon [name]="icono" [size]="17" />
+  }
+  <div><ng-content /></div>
+</div>

@@ -1,0 +1,8 @@
+<!-- by Jeremy Posada -->
+<div class="state state--bad" role="alert">
+  <div class="state__glyph"><app-icon name="alert" [size]="28" /></div>
+  <p class="state__msg">{{ message() }}</p>
+  @if (canRetry()) {
+    <button type="button" class="btn btn--line btn--s" (click)="retry.emit()">Reintentar</button>
+  }
+</div>

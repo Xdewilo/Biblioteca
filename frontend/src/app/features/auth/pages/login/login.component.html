@@ -1,0 +1,119 @@
+<!-- by Jeremy Posada -->
+<div class="gate">
+  <div class="gate__art">
+    <span class="gate__glow" aria-hidden="true"></span>
+    <div class="brand brand--dark">
+      <div class="brand__mark">A</div>
+      <div class="brand__name">Anaquel</div>
+    </div>
+
+    <div>
+      <p class="gate__quote">Un libro que no se presta es un libro que no existe.</p>
+      <p class="gate__cite">Sistema de préstamos · biblioteca</p>
+    </div>
+
+    <div class="gate__foot">Catálogo · Préstamos · Lista de espera · Avisos por correo</div>
+  </div>
+
+  <div class="gate__side">
+    <div class="gate__box">
+      <h1 class="gate__title">{{ modo() === 'entrar' ? 'Entrar' : 'Crear cuenta' }}</h1>
+      <p class="soft gate__lead">
+        {{ modo() === 'entrar' ? 'Accede para pedir y devolver libros.' : 'Regístrate para empezar a pedir libros.' }}
+      </p>
+
+      @if (auth.error(); as error) {
+        <app-note tone="bad">{{ error }}</app-note>
+      }
+
+      <form class="gate__form" [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+        @if (modo() === 'registrar') {
+          <div class="field">
+            <label class="field__label" for="nombre">Nombre</label>
+            <input
+              id="nombre"
+              class="in"
+              [class.in--bad]="error('nombre')"
+              formControlName="nombre"
+              autocomplete="name"
+              placeholder="Ana Pérez"
+            />
+            @if (error('nombre'); as e) {
+              <span class="field__bad" role="alert">{{ e }}</span>
+            }
+          </div>
+        }
+
+        <div class="field">
+          <label class="field__label" for="correo">Correo</label>
+          <input
+            id="correo"
+            class="in"
+            type="email"
+            [class.in--bad]="error('correo')"
+            formControlName="correo"
+            autocomplete="email"
+            placeholder="admin@anaquel.app"
+          />
+          @if (error('correo'); as e) {
+            <span class="field__bad" role="alert">{{ e }}</span>
+          }
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="clave">Contraseña</label>
+          <div class="in-wrap">
+            <input
+              id="clave"
+              class="in"
+              [type]="verClave() ? 'text' : 'password'"
+              [class.in--bad]="error('clave')"
+              formControlName="clave"
+              [autocomplete]="modo() === 'entrar' ? 'current-password' : 'new-password'"
+            />
+            <button
+              type="button"
+              class="in-wrap__btn"
+              [attr.aria-label]="verClave() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              [attr.aria-pressed]="verClave()"
+              (click)="verClave.set(!verClave())"
+            >
+              <app-icon [name]="verClave() ? 'eye-off' : 'eye'" [size]="17" />
+            </button>
+          </div>
+          @if (error('clave'); as e) {
+            <span class="field__bad" role="alert">{{ e }}</span>
+          } @else if (modo() === 'registrar') {
+            <span class="field__note">Mínimo 8 caracteres.</span>
+          }
+        </div>
+
+        <button type="submit" class="btn btn--main btn--full" [disabled]="auth.loading()">
+          @if (auth.loading()) {
+            <span class="spin" aria-hidden="true"></span>
+          }
+          {{ modo() === 'entrar' ? 'Entrar' : 'Crear cuenta' }}
+        </button>
+      </form>
+
+      <p class="soft gate__switch">
+        {{ modo() === 'entrar' ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?' }}
+        <button type="button" class="link" (click)="cambiarModo()">
+          {{ modo() === 'entrar' ? 'Registrarme' : 'Entrar' }}
+        </button>
+      </p>
+
+      <div class="gate__hint">
+        <strong>Cuentas de prueba (entorno local)</strong>
+        <div class="gate__hint-row">
+          <code>admin&#64;anaquel.app</code> · <code>Admin123*</code>
+          <span class="chip chip--mute">admin</span>
+        </div>
+        <div class="gate__hint-row">
+          <code>lectura&#64;anaquel.app</code> · <code>Admin123*</code>
+          <span class="chip chip--mute">bibliotecario</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

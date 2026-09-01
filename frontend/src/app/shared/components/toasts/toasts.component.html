@@ -1,0 +1,13 @@
+<!-- by Jeremy Posada -->
+<div class="toasts" aria-live="polite">
+  @for (t of toast.toasts(); track t.id) {
+    <div class="toast toast--{{ t.kind }}" role="status" [attr.data-toast]="t.id">
+      <span class="toast__icon"><app-icon [name]="iconoDe(t.kind)" [size]="17" /></span>
+      <span class="toast__msg">{{ t.message }}</span>
+      <button type="button" class="toast__x" aria-label="Cerrar aviso" (click)="toast.dismiss(t.id)">
+        <app-icon name="x" [size]="15" />
+      </button>
+      <span class="toast__bar" aria-hidden="true"></span>
+    </div>
+  }
+</div>

@@ -1,0 +1,21 @@
+<!-- by Jeremy Posada -->
+<app-sheet [title]="title()" [width]="440" (closed)="cancelled.emit()">
+  <div class="soft confirm__body"><ng-content /></div>
+  <ng-container sheetFooter>
+    <button type="button" class="btn btn--line" [disabled]="busy()" (click)="cancelar()">Cancelar</button>
+    <button
+      type="button"
+      class="btn"
+      [class.btn--danger]="danger()"
+      [class.btn--main]="!danger()"
+      [disabled]="busy()"
+      autofocus
+      (click)="confirmed.emit()"
+    >
+      @if (busy()) {
+        <span class="spin" aria-hidden="true"></span>
+      }
+      {{ confirmLabel() }}
+    </button>
+  </ng-container>
+</app-sheet>

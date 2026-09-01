@@ -1,0 +1,21 @@
+<!-- by Jeremy Posada -->
+<div class="cover cover--{{ size() }} cover--{{ estado() }}">
+  @if (src(); as url) {
+    @if (estado() !== 'fail') {
+      <img
+        [src]="url"
+        [alt]="'Portada de ' + title()"
+        loading="lazy"
+        decoding="async"
+        (load)="cargada()"
+        (error)="fallida()"
+      />
+    }
+  }
+  @if (estado() !== 'ok') {
+    <span class="cover__glyph">{{ inicial() }}</span>
+  }
+  @if (size() === 'card') {
+    <span class="cover__spine"></span>
+  }
+</div>

@@ -1,0 +1,10 @@
+<!-- by Jeremy Posada -->
+<div class="state">
+  @if (icon(); as icon) {
+    <div class="state__glyph"><app-icon [name]="icon" [size]="28" /></div>
+  }
+  <div>{{ message() }}</div>
+  @if (hint()) {
+    <div class="state__hint">{{ hint() }}</div>
+  }
+</div>
