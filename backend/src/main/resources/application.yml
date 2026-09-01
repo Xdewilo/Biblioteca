@@ -1,0 +1,125 @@
+spring:
+  application:
+    name: anaquel
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/anaquel}
+    username: ${DB_USERNAME:anaquel}
+    password: ${DB_PASSWORD:anaquel}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 10000
+
+  jpa:
+    open-in-view: false          # nada de lazy loading fuera de la transaccion
+    hibernate:
+      ddl-auto: validate         # el esquema lo manda Flyway, no Hibernate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: true
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:false}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+  thymeleaf:
+    cache: false
+    check-template-location: false
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-stacktrace: never
+  shutdown: graceful
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  # ---- Seguridad: JWT_SECRET llega por entorno; el valor por defecto es solo para local ----
+  jwt:
+    secret: ${JWT_SECRET:cambia-este-secreto-de-desarrollo-local-min-32-bytes}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:480}
+    issuer: anaquel-api
+
+  # URL base que se publica en el spec de OpenAPI (Swagger y docs/openapi.json).
+  api:
+    public-url: ${API_PUBLIC_URL:http://localhost:8080}
+
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173,http://localhost:3000}
+
+  # ---- Reglas de negocio (configurables sin recompilar) --------------------
+  rules:
+    loan-period-days: ${LOAN_PERIOD_DAYS:14}
+    max-late-returns: ${MAX_LATE_RETURNS:3}
+    late-returns-window-days: ${LATE_RETURNS_WINDOW_DAYS:90}
+    block-duration-days: ${BLOCK_DURATION_DAYS:7}
+    reminder-days-before: ${REMINDER_DAYS_BEFORE:2}
+    # Horas que se le guarda el libro a quien fue notificado, antes de pasar el turno.
+    reservation-hold-hours: ${RESERVATION_HOLD_HOURS:48}
+
+  # ---- Correo -------------------------------------------------------------
+  mail:
+    from: ${MAIL_FROM:hola@anaquel.app}
+    from-name: ${MAIL_FROM_NAME:Anaquel}
+    app-url: ${APP_PUBLIC_URL:http://localhost:5173}
+
+  # ---- Tareas programadas -------------------------------------------------
+  scheduling:
+    reminder-cron: ${REMINDER_CRON:0 0 8 * * *}
+    overdue-cron: ${OVERDUE_CRON:0 30 8 * * *}
+    # Cada hora, en el minuto 5: libera los turnos que nadie confirmo.
+    expire-holds-cron: ${EXPIRE_HOLDS_CRON:0 5 * * * *}
+
+  # ---- API externa --------------------------------------------------------
+  openlibrary:
+    base-url: ${OPENLIBRARY_BASE_URL:https://openlibrary.org}
+    covers-base-url: ${OPENLIBRARY_COVERS_URL:https://covers.openlibrary.org}
+    # 5 s porque openlibrary.org responde 302 y una consulta son al menos dos viajes de red.
+    timeout-ms: ${OPENLIBRARY_TIMEOUT_MS:5000}
+    max-retries: ${OPENLIBRARY_MAX_RETRIES:1}
+    cache:
+      ttl-hours: ${OPENLIBRARY_CACHE_TTL_HOURS:24}
+      max-size: ${OPENLIBRARY_CACHE_MAX_SIZE:1000}
+
+logging:
+  level:
+    com.jposada.anaquel: ${LOG_LEVEL:INFO}
+    org.springframework.security: WARN

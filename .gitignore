@@ -1,0 +1,29 @@
+# ---- secretos: NUNCA se versionan ----
+.env
+.env.local
+*.pem
+*.key
+
+# ---- Java / Maven ----
+target/
+*.jar
+*.class
+.mvn/wrapper/maven-wrapper.jar
+
+# ---- Node ----
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+
+# ---- IDE / SO ----
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# ---- logs ----
+*.log
+
+# El enunciado es confidencial del proceso de seleccion: no se versiona.
+Prueba Tecnica Fullstack - Biblioteca.pdf

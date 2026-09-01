@@ -1,0 +1,103 @@
+# Anaquel: docker compose up --build
+#   Frontend -> :5173 | API -> :8080 (Swagger en /swagger-ui.html) | MailHog -> :8025 | Postgres -> :5432
+# Los secretos se leen de .env (copiar desde .env.example); ninguno esta versionado.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: anaquel-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-anaquel}
+      POSTGRES_USER: ${DB_USERNAME:-anaquel}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-anaquel}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-anaquel} -d ${DB_NAME:-anaquel}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [anaquel]
+
+  # SMTP de mentira con interfaz web: aqui aterrizan todos los correos que envia la app.
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: anaquel-mailhog
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # interfaz web
+    networks: [anaquel]
+
+  backend:
+    build:
+      context: ./backend
+    container_name: anaquel-api
+    depends_on:
+      db:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-anaquel}
+      DB_USERNAME: ${DB_USERNAME:-anaquel}
+      DB_PASSWORD: ${DB_PASSWORD:-anaquel}
+
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_SMTP_AUTH: "false"
+      MAIL_SMTP_STARTTLS: "false"
+      MAIL_FROM: ${MAIL_FROM:-hola@anaquel.app}
+
+      JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-de-desarrollo-local-min-32-bytes}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-480}
+
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:5173}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:8080}
+
+      # Cuentas de prueba que crea DataSeeder al arrancar.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@anaquel.app}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin123*}
+      SEED_LIBRARIAN_EMAIL: ${SEED_LIBRARIAN_EMAIL:-lectura@anaquel.app}
+      SEED_LIBRARIAN_PASSWORD: ${SEED_LIBRARIAN_PASSWORD:-Admin123*}
+
+      # Reglas de negocio: utiles para demostrar el bloqueo sin esperar 90 dias.
+      LOAN_PERIOD_DAYS: ${LOAN_PERIOD_DAYS:-14}
+      MAX_LATE_RETURNS: ${MAX_LATE_RETURNS:-3}
+      LATE_RETURNS_WINDOW_DAYS: ${LATE_RETURNS_WINDOW_DAYS:-90}
+      BLOCK_DURATION_DAYS: ${BLOCK_DURATION_DAYS:-7}
+      REMINDER_DAYS_BEFORE: ${REMINDER_DAYS_BEFORE:-2}
+      RESERVATION_HOLD_HOURS: ${RESERVATION_HOLD_HOURS:-48}
+
+      # API externa: si se deja sin red, la app sigue funcionando con datos manuales.
+      OPENLIBRARY_TIMEOUT_MS: ${OPENLIBRARY_TIMEOUT_MS:-5000}
+      OPENLIBRARY_MAX_RETRIES: ${OPENLIBRARY_MAX_RETRIES:-1}
+      OPENLIBRARY_CACHE_TTL_HOURS: ${OPENLIBRARY_CACHE_TTL_HOURS:-24}
+
+      # Cron de las tareas programadas (por defecto 8:00 y 8:30 todos los dias).
+      REMINDER_CRON: ${REMINDER_CRON:-0 0 8 * * *}
+      OVERDUE_CRON: ${OVERDUE_CRON:-0 30 8 * * *}
+      EXPIRE_HOLDS_CRON: ${EXPIRE_HOLDS_CRON:-0 5 * * * *}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    networks: [anaquel]
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: anaquel-web
+    depends_on:
+      backend:
+        condition: service_healthy   # usa el HEALTHCHECK del Dockerfile (/actuator/health)
+    ports:
+      - "${WEB_PORT:-5173}:80"
+    networks: [anaquel]
+
+volumes:
+  postgres-data:
+
+networks:
+  anaquel:
+    driver: bridge
