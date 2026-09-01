@@ -1,0 +1,1544 @@
+{
+  "components" : {
+    "schemas" : {
+      "ApiError" : {
+        "description" : "Formato unico de error de toda la API. Lo produce el @RestControllerAdvice, incluidos los 401 y 403 que Spring Security genera antes de llegar al controlador.",
+        "properties" : {
+          "code" : {
+            "description" : "Codigo estable de negocio. El frontend reacciona a ESTO, no al texto del mensaje",
+            "example" : "BOOK_NOT_AVAILABLE",
+            "type" : "string"
+          },
+          "errors" : {
+            "description" : "Solo en errores de validacion: el detalle campo por campo",
+            "items" : {
+              "$ref" : "#/components/schemas/FieldViolation"
+            },
+            "type" : "array"
+          },
+          "message" : {
+            "description" : "Mensaje legible para la persona",
+            "example" : "El libro '1984' no esta disponible para prestamo (estado actual: PRESTADO).",
+            "type" : "string"
+          },
+          "path" : {
+            "description" : "Ruta que se invoco",
+            "example" : "/api/loans",
+            "type" : "string"
+          },
+          "status" : {
+            "description" : "Codigo HTTP",
+            "example" : 409,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timestamp" : {
+            "description" : "Momento del error",
+            "example" : "2026-08-18T00:56:54.974Z",
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AuthResponse" : {
+        "properties" : {
+          "expiresInSeconds" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "token" : {
+            "type" : "string"
+          },
+          "tokenType" : {
+            "type" : "string"
+          },
+          "user" : {
+            "$ref" : "#/components/schemas/UserResponse"
+          }
+        },
+        "type" : "object"
+      },
+      "BookLookupResponse" : {
+        "description" : "Previsualizacion traida de Open Library. NO persiste nada: alimenta el boton 'Autocompletar desde ISBN' del formulario de alta.",
+        "properties" : {
+          "alreadyRegistered" : {
+            "description" : "true si ese ISBN ya existe en el catalogo: guardarlo daria 409",
+            "type" : "boolean"
+          },
+          "author" : {
+            "type" : "string"
+          },
+          "coverUrl" : {
+            "type" : "string"
+          },
+          "isbn" : {
+            "type" : "string"
+          },
+          "publicationYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "source" : {
+            "description" : "De donde salieron los datos",
+            "example" : "openlibrary.org",
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "BookResponse" : {
+        "properties" : {
+          "author" : {
+            "type" : "string"
+          },
+          "coverUrl" : {
+            "type" : "string"
+          },
+          "enrichedFromExternal" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "isbn" : {
+            "type" : "string"
+          },
+          "publicationYear" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "enum" : [ "DISPONIBLE", "PRESTADO", "RESERVADO" ],
+            "type" : "string"
+          },
+          "subjects" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CreateBookRequest" : {
+        "description" : "Alta de un libro. Lo unico obligatorio es el ISBN: si dejas titulo, autor o anio vacios se completan desde Open Library. Si la API externa falla, el libro se guarda igual con lo que hayas escrito a mano.",
+        "properties" : {
+          "author" : {
+            "description" : "Opcional: si va vacio se toma de Open Library",
+            "example" : "Robert C. Martin",
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "autocomplete" : {
+            "default" : true,
+            "description" : "false = no consultar Open Library aunque falten datos. Por defecto true",
+            "example" : true,
+            "type" : "boolean"
+          },
+          "coverUrl" : {
+            "description" : "Opcional: normalmente lo aporta Open Library",
+            "type" : "string"
+          },
+          "isbn" : {
+            "description" : "Con o sin guiones; se normaliza al guardar",
+            "example" : "978-0-13-235088-4",
+            "pattern" : "^[0-9Xx\\- ]{10,20}$",
+            "type" : "string"
+          },
+          "publicationYear" : {
+            "description" : "Opcional: si va vacio se toma de Open Library",
+            "example" : 2008,
+            "format" : "int32",
+            "maximum" : 2100,
+            "minimum" : 1450,
+            "type" : "integer"
+          },
+          "subjects" : {
+            "description" : "Temas o materias. Si va vacio se toman de Open Library",
+            "items" : {
+              "description" : "Temas o materias. Si va vacio se toman de Open Library",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "description" : "Opcional: si va vacio se toma de Open Library",
+            "example" : "Clean Code",
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "isbn" ],
+        "type" : "object"
+      },
+      "CreateLoanRequest" : {
+        "description" : "Registro de un prestamo. Normalmente basta con el id del libro: el prestatario se toma del usuario autenticado. Solo un ADMIN puede prestar a nombre de otra persona.",
+        "properties" : {
+          "bookId" : {
+            "description" : "Id del libro. Debe estar DISPONIBLE",
+            "example" : 1,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "borrowerEmail" : {
+            "description" : "Solo ADMIN. Por defecto, el correo del usuario autenticado",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "borrowerName" : {
+            "description" : "Solo ADMIN. Por defecto, el nombre del usuario autenticado",
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "bookId" ],
+        "type" : "object"
+      },
+      "CreateReservationRequest" : {
+        "properties" : {
+          "bookId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "requesterEmail" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "bookId" ],
+        "type" : "object"
+      },
+      "FieldViolation" : {
+        "description" : "Solo en errores de validacion: el detalle campo por campo",
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "LoanResponse" : {
+        "description" : "Un prestamo. Los campos overdue, daysOverdue y returnedLate NO son columnas: se calculan al construir la respuesta para que el frontend no repita la logica.",
+        "properties" : {
+          "bookAuthor" : {
+            "type" : "string"
+          },
+          "bookCoverUrl" : {
+            "type" : "string"
+          },
+          "bookId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "bookIsbn" : {
+            "type" : "string"
+          },
+          "bookTitle" : {
+            "type" : "string"
+          },
+          "borrowerEmail" : {
+            "type" : "string"
+          },
+          "borrowerName" : {
+            "type" : "string"
+          },
+          "daysOverdue" : {
+            "description" : "Calculado: dias transcurridos desde la fecha limite",
+            "example" : 3,
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "dueDate" : {
+            "description" : "Fecha limite: loanDate + 14 dias",
+            "example" : "2026-09-01",
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "loanDate" : {
+            "description" : "Fecha en que se presto",
+            "example" : "2026-08-18",
+            "format" : "date",
+            "type" : "string"
+          },
+          "overdue" : {
+            "description" : "Calculado: sin devolver y ya paso la fecha limite",
+            "type" : "boolean"
+          },
+          "returnDate" : {
+            "description" : "null mientras no se haya devuelto",
+            "example" : "2026-08-30",
+            "format" : "date",
+            "type" : "string"
+          },
+          "returned" : {
+            "description" : "true si ya se devolvio",
+            "type" : "boolean"
+          },
+          "returnedLate" : {
+            "description" : "Calculado: se devolvio tarde. Cuenta como atraso para la regla de los 3",
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "LoginRequest" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "password" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "password" ],
+        "type" : "object"
+      },
+      "PageBookResponse" : {
+        "properties" : {
+          "content" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BookResponse"
+            },
+            "type" : "array"
+          },
+          "empty" : {
+            "type" : "boolean"
+          },
+          "first" : {
+            "type" : "boolean"
+          },
+          "last" : {
+            "type" : "boolean"
+          },
+          "number" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "numberOfElements" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageable" : {
+            "$ref" : "#/components/schemas/PageableObject"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "sort" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SortObject"
+            },
+            "type" : "array"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalPages" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "PageableObject" : {
+        "properties" : {
+          "offset" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "pageNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "pageSize" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "paged" : {
+            "type" : "boolean"
+          },
+          "sort" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SortObject"
+            },
+            "type" : "array"
+          },
+          "unpaged" : {
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "RegisterRequest" : {
+        "properties" : {
+          "email" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "password" : {
+            "maxLength" : 72,
+            "minLength" : 8,
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "name", "password" ],
+        "type" : "object"
+      },
+      "ReservationResponse" : {
+        "description" : "Un puesto en la lista de espera. Cuando el estado pasa a NOTIFICADO el libro queda guardado a tu nombre hasta holdExpiresAt; pasado ese plazo el turno pasa al siguiente.",
+        "properties" : {
+          "bookId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "bookTitle" : {
+            "type" : "string"
+          },
+          "holdExpiresAt" : {
+            "description" : "Hasta cuando se te guarda el libro. null si aun no te toca",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "notifiedAt" : {
+            "description" : "Cuando se te aviso de que el libro quedo libre",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "queuePosition" : {
+            "description" : "Puesto en la fila: 1 es el siguiente. null si ya no esta en espera",
+            "example" : 1,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "readyToConfirm" : {
+            "description" : "true si ya puedes confirmar el prestamo en un solo paso",
+            "type" : "boolean"
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requesterEmail" : {
+            "type" : "string"
+          },
+          "status" : {
+            "description" : "PENDIENTE -> NOTIFICADO (te toca) -> CUMPLIDO o CANCELADO",
+            "enum" : [ "PENDIENTE", "NOTIFICADO", "CANCELADO", "CUMPLIDO" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SortObject" : {
+        "properties" : {
+          "ascending" : {
+            "type" : "boolean"
+          },
+          "direction" : {
+            "type" : "string"
+          },
+          "ignoreCase" : {
+            "type" : "boolean"
+          },
+          "nullHandling" : {
+            "type" : "string"
+          },
+          "property" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StatsResponse" : {
+        "description" : "Fotografia del estado de la biblioteca. Solo ADMIN.",
+        "properties" : {
+          "activeLoans" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "availableBooks" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "blockedAccounts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/UserResponse"
+            },
+            "type" : "array"
+          },
+          "blockedUsers" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "dueSoonLoans" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "loanedBooks" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "overdueLoans" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "pendingReservations" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reservedBooks" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalBooks" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "totalUsers" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "UserResponse" : {
+        "properties" : {
+          "blocked" : {
+            "type" : "boolean"
+          },
+          "blockedReason" : {
+            "type" : "string"
+          },
+          "blockedUntil" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "ADMIN", "BIBLIOTECARIO" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  },
+  "info" : {
+    "contact" : {
+      "name" : "Prueba tecnica Ezertech"
+    },
+    "description" : "## Sistema de prestamos de una biblioteca\n\nReemplaza la planilla de Excel: catalogo consultable, prestamos con reglas de atraso y bloqueo, lista de espera, correos automaticos y autocompletado de libros desde Open Library con solo el ISBN.\n\n### Como probar esta API en 4 pasos\n\n1. Abre **Autenticacion -> POST /api/auth/login** y pulsa *Try it out*.\n2. Envia `{\"email\": \"admin@anaquel.app\", \"password\": \"Admin123*\"}` y copia el valor de `token` de la respuesta.\n3. Pulsa el boton verde **Authorize** (arriba a la derecha) y pega el token. Ya no hace falta escribir `Bearer`.\n4. Ahora puedes ejecutar cualquier endpoint. Prueba **GET /api/books**.\n\n### Los dos roles\n\n- **BIBLIOTECARIO**: ve el catalogo, pide prestamos, devuelve y reserva.\n- **ADMIN**: ademas registra y elimina libros, ve las estadisticas y levanta bloqueos de cuentas.\n\nPara ver la diferencia, entra con `lectura@anaquel.app / Admin123*` e intenta un endpoint de ADMIN: recibiras un 403 con el mismo formato de error.\n\n### Las tres reglas de negocio\n\n1. Al prestar: el libro debe estar DISPONIBLE y la cuenta no bloqueada. Se fija la fecha limite a 14 dias y sale el correo de confirmacion.\n2. Al devolver tarde 3 veces en 90 dias: la cuenta se bloquea una semana y se avisa por correo. Un ADMIN puede levantarlo antes.\n3. Al devolver un libro que alguien esperaba: NO vuelve a DISPONIBLE, queda RESERVADO para el primero de la fila, que recibe un correo.\n\n### Errores\n\nTodos tienen la misma forma (`timestamp`, `status`, `code`, `message`, `path`). El campo `code` es estable: es el que debe leer un cliente, no el texto del mensaje.\n\n### Los correos\n\nSe envian de verdad, fuera del hilo de la peticion. Miralos en MailHog: http://localhost:8025",
+    "title" : "API Biblioteca",
+    "version" : "1.0.0"
+  },
+  "openapi" : "3.0.1",
+  "paths" : {
+    "/api/admin/stats" : {
+      "get" : {
+        "operationId" : "stats",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatsResponse"
+                }
+              }
+            },
+            "description" : "Contadores del catalogo, los prestamos y las cuentas bloqueadas"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN - tu rol no es ADMIN"
+          }
+        },
+        "summary" : "Estadisticas globales: prestados, vencidos, bloqueados",
+        "tags" : [ "Administracion" ]
+      }
+    },
+    "/api/admin/users" : {
+      "get" : {
+        "operationId" : "users",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/UserResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Todas las cuentas"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN - tu rol no es ADMIN"
+          }
+        },
+        "summary" : "Todas las cuentas",
+        "tags" : [ "Administracion" ]
+      }
+    },
+    "/api/admin/users/blocked" : {
+      "get" : {
+        "operationId" : "blockedUsers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/UserResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Cuentas con el bloqueo vigente ahora mismo"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN - tu rol no es ADMIN"
+          }
+        },
+        "summary" : "Cuentas bloqueadas ahora mismo",
+        "tags" : [ "Administracion" ]
+      }
+    },
+    "/api/admin/users/{id}/unblock" : {
+      "post" : {
+        "operationId" : "unblock",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description" : "Bloqueo levantado: la cuenta ya puede pedir prestamos"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN - tu rol no es ADMIN"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe un usuario con ese id"
+          }
+        },
+        "summary" : "Levanta el bloqueo de una cuenta antes de que se cumpla el plazo",
+        "tags" : [ "Administracion" ]
+      }
+    },
+    "/api/auth/login" : {
+      "post" : {
+        "operationId" : "login",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description" : "Credenciales correctas. Copia el token en el boton Authorize de arriba"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Falta el correo o la contrasena"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "BAD_CREDENTIALS - misma respuesta si el correo no existe o si la clave es incorrecta, para no revelar quien tiene cuenta"
+          }
+        },
+        "security" : [ ],
+        "summary" : "Autentica y devuelve el token JWT",
+        "tags" : [ "Autenticacion" ]
+      }
+    },
+    "/api/auth/me" : {
+      "get" : {
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description" : "Datos del token, incluido si la cuenta esta bloqueada por atrasos"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Falta el token o esta vencido"
+          }
+        },
+        "summary" : "Datos del usuario autenticado",
+        "tags" : [ "Autenticacion" ]
+      }
+    },
+    "/api/auth/register" : {
+      "post" : {
+        "operationId" : "register",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description" : "Cuenta creada. Devuelve el token ya listo para usar"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Datos invalidos: correo mal formado o contrasena de menos de 8 caracteres"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "EMAIL_ALREADY_USED - ese correo ya tiene cuenta"
+          }
+        },
+        "security" : [ ],
+        "summary" : "Crea una cuenta y devuelve el token",
+        "tags" : [ "Autenticacion" ]
+      }
+    },
+    "/api/books" : {
+      "get" : {
+        "operationId" : "list",
+        "parameters" : [ {
+          "description" : "Texto libre: busca en titulo, autor e ISBN, sin distinguir mayusculas",
+          "example" : "clean",
+          "in" : "query",
+          "name" : "search",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "description" : "Filtra por estado del ejemplar",
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "enum" : [ "DISPONIBLE", "PRESTADO", "RESERVADO" ],
+            "type" : "string"
+          }
+        }, {
+          "description" : "Numero de pagina, empezando en 0",
+          "example" : 0,
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "description" : "Tamano de pagina, maximo 100",
+          "example" : 12,
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 20,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageBookResponse"
+                }
+              }
+            },
+            "description" : "Pagina de libros. Usa search para filtrar por titulo, autor o ISBN"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Falta el token"
+          }
+        },
+        "summary" : "Lista el catalogo con busqueda por titulo/autor/ISBN y filtro por estado",
+        "tags" : [ "Catalogo" ]
+      },
+      "post" : {
+        "operationId" : "create_2",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateBookRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BookResponse"
+                }
+              }
+            },
+            "description" : "Libro registrado. enrichedFromExternal indica si los datos vinieron de Open Library"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "VALIDATION_ERROR (falta el ISBN) o MISSING_BOOK_DATA (la API fallo y no escribiste titulo ni autor)"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN - tu rol no es ADMIN"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "DUPLICATE_ISBN - ya existe un libro con ese ISBN"
+          }
+        },
+        "summary" : "Registra un libro (ADMIN). Completa los campos vacios desde Open Library",
+        "tags" : [ "Catalogo" ]
+      }
+    },
+    "/api/books/lookup/{isbn}" : {
+      "get" : {
+        "description" : "404 si el ISBN no existe alla; 503 si la API externa no respondio a tiempo.",
+        "operationId" : "lookup",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "isbn",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BookLookupResponse"
+                }
+              }
+            },
+            "description" : "Datos traidos de Open Library. NO se guarda nada: es solo la previsualizacion"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - Open Library no conoce ese ISBN. Registra el libro a mano"
+          },
+          "503" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "EXTERNAL_LOOKUP_FAILED - la API externa no respondio a tiempo. El libro se puede registrar igual a mano"
+          }
+        },
+        "summary" : "Previsualiza los datos del libro desde Open Library sin guardar nada",
+        "tags" : [ "Catalogo" ]
+      }
+    },
+    "/api/books/{id}" : {
+      "delete" : {
+        "operationId" : "delete",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Libro eliminado"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN - tu rol no es ADMIN"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe un libro con ese id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "BOOK_NOT_DELETABLE - el libro esta PRESTADO o RESERVADO, o tiene un prestamo activo"
+          }
+        },
+        "summary" : "Elimina un libro (ADMIN). Solo si esta DISPONIBLE",
+        "tags" : [ "Catalogo" ]
+      },
+      "get" : {
+        "operationId" : "getById",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BookResponse"
+                }
+              }
+            },
+            "description" : "El libro"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe un libro con ese id"
+          }
+        },
+        "summary" : "Detalle de un libro",
+        "tags" : [ "Catalogo" ]
+      }
+    },
+    "/api/loans" : {
+      "get" : {
+        "operationId" : "all",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/LoanResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Todos los prestamos del sistema"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN - tu rol no es ADMIN"
+          }
+        },
+        "summary" : "Todos los prestamos (ADMIN)",
+        "tags" : [ "Prestamos" ]
+      },
+      "post" : {
+        "operationId" : "create_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateLoanRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LoanResponse"
+                }
+              }
+            },
+            "description" : "Prestamo registrado: el libro pasa a PRESTADO, dueDate = hoy + 14 dias y sale el correo de confirmacion"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Falta el bookId"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "USER_BLOCKED (cuenta bloqueada por 3 atrasos) o FORBIDDEN_BORROWER (solo un ADMIN presta a nombre de otro)"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe un libro con ese id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "BOOK_NOT_AVAILABLE - el libro esta PRESTADO, o RESERVADO para otra persona"
+          }
+        },
+        "summary" : "Registra un prestamo. Valida disponibilidad y bloqueo por atrasos",
+        "tags" : [ "Prestamos" ]
+      }
+    },
+    "/api/loans/mine" : {
+      "get" : {
+        "operationId" : "mine_1",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/LoanResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Tus prestamos, activos e historicos, con el calculo de vencimiento"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Falta el token"
+          }
+        },
+        "summary" : "Prestamos del usuario autenticado",
+        "tags" : [ "Prestamos" ]
+      }
+    },
+    "/api/loans/{id}/return" : {
+      "put" : {
+        "operationId" : "markReturned",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LoanResponse"
+                }
+              }
+            },
+            "description" : "Devuelto. Si fue tarde suma un atraso; al tercero en 90 dias la cuenta se bloquea. Si habia lista de espera, el libro queda RESERVADO y se avisa al primero de la fila"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN_LOAN - solo puedes devolver tus propios prestamos (salvo ADMIN)"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe un prestamo con ese id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "LOAN_ALREADY_RETURNED - ese prestamo ya se devolvio"
+          }
+        },
+        "summary" : "Marca el prestamo como devuelto. Aplica atrasos y lista de espera",
+        "tags" : [ "Prestamos" ]
+      }
+    },
+    "/api/reservations" : {
+      "post" : {
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateReservationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReservationResponse"
+                }
+              }
+            },
+            "description" : "Estas en la fila. queuePosition indica tu puesto; te llegara un correo cuando lo devuelvan"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Falta el bookId"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN_REQUESTER - solo un ADMIN reserva a nombre de otra persona"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe un libro con ese id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "BOOK_ALREADY_AVAILABLE (esta libre: pidelo prestado) o DUPLICATE_RESERVATION (ya estabas en la fila)"
+          }
+        },
+        "summary" : "Entra a la lista de espera de un libro prestado",
+        "tags" : [ "Lista de espera" ]
+      }
+    },
+    "/api/reservations/mine" : {
+      "get" : {
+        "operationId" : "mine",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ReservationResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Tus reservas con su estado y tu puesto en la fila"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "Falta el token"
+          }
+        },
+        "summary" : "Reservas del usuario autenticado, con su posicion en la fila",
+        "tags" : [ "Lista de espera" ]
+      }
+    },
+    "/api/reservations/{id}" : {
+      "delete" : {
+        "operationId" : "cancel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Reserva cancelada. Si tenias el turno, pasa al siguiente de la fila; si no queda nadie, el libro vuelve a DISPONIBLE"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "FORBIDDEN_RESERVATION - solo puedes cancelar tus propias reservas"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe una reserva con ese id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "RESERVATION_NOT_CANCELABLE - ya estaba CANCELADO o CUMPLIDO"
+          }
+        },
+        "summary" : "Cancela una reserva. Si tenia el turno, pasa al siguiente de la fila",
+        "tags" : [ "Lista de espera" ]
+      }
+    },
+    "/api/reservations/{id}/confirm" : {
+      "post" : {
+        "description" : "Solo funciona si la reserva esta NOTIFICADO, es decir, si ya te toca el turno.",
+        "operationId" : "confirm",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LoanResponse"
+                }
+              }
+            },
+            "description" : "Prestamo creado a tu nombre: el libro pasa a PRESTADO y vence en 14 dias"
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "USER_BLOCKED (tu cuenta esta bloqueada) o FORBIDDEN_RESERVATION (no es tu reserva)"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "NOT_FOUND - no existe una reserva con ese id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description" : "RESERVATION_NOT_READY - todavia no te toca el turno"
+          }
+        },
+        "summary" : "Confirma en un solo paso el prestamo del libro que te estaban guardando",
+        "tags" : [ "Lista de espera" ]
+      }
+    }
+  },
+  "security" : [ {
+    "bearerAuth" : [ ]
+  } ],
+  "servers" : [ {
+    "description" : "Servidor de la API",
+    "url" : "http://localhost:8080"
+  } ],
+  "tags" : [ {
+    "description" : "Registro y devolucion de prestamos",
+    "name" : "Prestamos"
+  }, {
+    "description" : "Estadisticas y gestion de cuentas bloqueadas (solo ADMIN)",
+    "name" : "Administracion"
+  }, {
+    "description" : "Libros, busqueda y autocompletado desde Open Library",
+    "name" : "Catalogo"
+  }, {
+    "description" : "Registro y login con JWT",
+    "name" : "Autenticacion"
+  }, {
+    "description" : "Reservas sobre libros prestados",
+    "name" : "Lista de espera"
+  } ]
+}

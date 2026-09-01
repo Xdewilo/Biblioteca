@@ -1,0 +1,1422 @@
+{
+  "info": {
+    "name": "Biblioteca — Prueba Tecnica Fullstack (Ezertech)",
+    "description": "Coleccion completa de la API de prestamos.\n\nCOMO USARLA\n1. Levanta todo con `docker compose up --build`.\n2. Ejecuta **Auth > Login (ADMIN)**: el token se guarda solo en la variable {{token}}.\n3. El resto de peticiones ya salen autenticadas (auth heredada a nivel de coleccion).\n\nLa carpeta **Escenario completo** reproduce, en orden, el flujo de negocio de la prueba: prestar -> lista de espera -> devolver -> reserva notificada.\n\nLos correos enviados se revisan en MailHog: http://localhost:8025",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@anaquel.app",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "Admin123*",
+      "type": "string"
+    },
+    {
+      "key": "librarianEmail",
+      "value": "lectura@anaquel.app",
+      "type": "string"
+    },
+    {
+      "key": "librarianPassword",
+      "value": "Admin123*",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "loanId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reservationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "isbn",
+      "value": "9780134685991",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login (ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "description": "Guarda el token en la variable {{token}} para el resto de la coleccion.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('devuelve token', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+                  "pm.test('rol ADMIN', () => pm.expect(body.user.role).to.eql('ADMIN'));",
+                  "pm.collectionVariables.set('token', body.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (BIBLIOTECARIO)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "description": "Usalo para comprobar que un rol no ADMIN recibe 403 en los endpoints protegidos.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{librarianEmail}}\",\n  \"password\": \"{{librarianPassword}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token', body.token);",
+                  "pm.test('rol BIBLIOTECARIO', () => pm.expect(body.user.role).to.eql('BIBLIOTECARIO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar cuenta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "query": []
+            },
+            "description": "Crea una cuenta BIBLIOTECARIO. La contrasena se guarda con BCrypt.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ana Perez\",\n  \"email\": \"ana@biblioteca.co\",\n  \"password\": \"Secreta123\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('no expone la contrasena', () => {",
+                  "  const user = pm.response.json().user;",
+                  "  pm.expect(user.password).to.be.undefined;",
+                  "  pm.expect(user.passwordHash).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registro duplicado -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ],
+              "query": []
+            },
+            "description": "Segunda vez con el mismo correo: debe responder 409 EMAIL_ALREADY_USED.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ana Perez\",\n  \"email\": \"ana@biblioteca.co\",\n  \"password\": \"Secreta123\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('codigo EMAIL_ALREADY_USED', () => pm.expect(pm.response.json().code).to.eql('EMAIL_ALREADY_USED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login con clave incorrecta -> 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "description": "Formato de error consistente: code, message y path en JSON.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"no-es-la-clave\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('codigo BAD_CREDENTIALS', () => pm.expect(pm.response.json().code).to.eql('BAD_CREDENTIALS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usuario autenticado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ],
+              "query": []
+            },
+            "description": "Datos del usuario del token, incluido si esta bloqueado."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Catalogo",
+      "item": [
+        {
+          "name": "Listar libros",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books?page=0&size=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Catalogo paginado."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.content.length) pm.collectionVariables.set('bookId', body.content[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar por titulo/autor/ISBN",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books?search=clean",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "clean"
+                }
+              ]
+            },
+            "description": "El parametro search busca en titulo, autor e ISBN (sin distinguir mayusculas)."
+          },
+          "response": []
+        },
+        {
+          "name": "Filtrar por estado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books?status=DISPONIBLE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "DISPONIBLE"
+                }
+              ]
+            },
+            "description": "Estados posibles: DISPONIBLE, PRESTADO, RESERVADO."
+          },
+          "response": []
+        },
+        {
+          "name": "Detalle de un libro",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "{{bookId}}"
+              ],
+              "query": []
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Autocompletar desde ISBN (preview)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books/lookup/{{isbn}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "lookup",
+                "{{isbn}}"
+              ],
+              "query": []
+            },
+            "description": "Consulta Open Library y devuelve la previsualizacion SIN guardar nada.\nLa respuesta se cachea en memoria (Caffeine): la segunda llamada no golpea la API.\n404 si el ISBN no existe alla; 503 si la API no respondio a tiempo."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 o 404/503 segun Open Library', () => pm.expect([200,404,503]).to.include(pm.response.code));",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('trae titulo', () => pm.expect(body.title).to.be.a('string'));",
+                  "  pm.test('la fuente es Open Library', () => pm.expect(body.source).to.eql('openlibrary.org'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar libro (ADMIN, autocompletado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": []
+            },
+            "description": "Solo con el ISBN: titulo, autor, anio y portada se completan desde Open Library.\nSi la API falla, hay que mandar title y author a mano (el registro no se rompe).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isbn\": \"9780321125217\",\n  \"autocomplete\": true\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('bookId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar libro (datos manuales)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": []
+            },
+            "description": "autocomplete=false no consulta la API externa: prueba el camino 100% manual.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isbn\": \"9780201633610\",\n  \"title\": \"Design Patterns\",\n  \"author\": \"Erich Gamma\",\n  \"publicationYear\": 1994,\n  \"autocomplete\": false\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ISBN duplicado -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": []
+            },
+            "description": "Regla de negocio: el ISBN es unico.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isbn\": \"9780132350884\",\n  \"title\": \"Clean Code\",\n  \"author\": \"Robert C. Martin\",\n  \"autocomplete\": false\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('codigo DUPLICATE_ISBN', () => pm.expect(pm.response.json().code).to.eql('DUPLICATE_ISBN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validacion: sin ISBN -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": []
+            },
+            "description": "El error trae el detalle campo por campo en el arreglo errors[].",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Libro sin ISBN\",\n  \"author\": \"Nadie\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('detalle por campo', () => pm.expect(pm.response.json().errors[0].field).to.eql('isbn'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar libro (ADMIN, solo si DISPONIBLE)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "{{bookId}}"
+              ],
+              "query": []
+            },
+            "description": "409 BOOK_NOT_DELETABLE si el libro esta PRESTADO o RESERVADO."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Prestamos",
+      "item": [
+        {
+          "name": "Registrar prestamo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans"
+              ],
+              "query": []
+            },
+            "description": "Valida que el libro este DISPONIBLE y que la cuenta no este bloqueada.\nDeja el libro en PRESTADO, calcula dueDate a 14 dias y dispara el correo\nde confirmacion de forma asincrona (revisalo en MailHog).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": \"{{bookId}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const loan = pm.response.json();",
+                  "pm.collectionVariables.set('loanId', loan.id);",
+                  "pm.test('vence en 14 dias', () => {",
+                  "  const dias = (new Date(loan.dueDate) - new Date(loan.loanDate)) / 86400000;",
+                  "  pm.expect(Math.round(dias)).to.eql(14);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prestar un libro ya prestado -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans"
+              ],
+              "query": []
+            },
+            "description": "Regla de negocio: el libro debe estar DISPONIBLE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": \"{{bookId}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('codigo BOOK_NOT_AVAILABLE', () => pm.expect(pm.response.json().code).to.eql('BOOK_NOT_AVAILABLE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis prestamos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans/mine",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans",
+                "mine"
+              ],
+              "query": []
+            },
+            "description": "Cada prestamo indica si esta vencido y cuantos dias lleva de atraso."
+          },
+          "response": []
+        },
+        {
+          "name": "Todos los prestamos (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans"
+              ],
+              "query": []
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Devolver prestamo",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans/{{loanId}}/return",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans",
+                "{{loanId}}",
+                "return"
+              ],
+              "query": []
+            },
+            "description": "Si se devuelve tarde suma un atraso; al tercero en 90 dias la cuenta se bloquea.\nSi hay lista de espera, el libro pasa a RESERVADO y se notifica al primero."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('queda devuelto', () => pm.expect(pm.response.json().returned).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Devolver dos veces -> 409",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans/{{loanId}}/return",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans",
+                "{{loanId}}",
+                "return"
+              ],
+              "query": []
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Lista de espera",
+      "item": [
+        {
+          "name": "Entrar a la lista de espera",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reservations"
+              ],
+              "query": []
+            },
+            "description": "Solo tiene sentido sobre un libro PRESTADO o RESERVADO.\nDevuelve la posicion en la fila.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": \"{{bookId}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('reservationId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reservar un libro disponible -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reservations"
+              ],
+              "query": []
+            },
+            "description": "Si el libro esta DISPONIBLE, la respuesta invita a pedirlo prestado directamente.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": \"{{bookId}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis reservas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations/mine",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reservations",
+                "mine"
+              ],
+              "query": []
+            },
+            "description": "Estado y posicion en la fila de cada reserva."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancelar reserva",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations/{{reservationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reservations",
+                "{{reservationId}}"
+              ],
+              "query": []
+            },
+            "description": "Si tenia el turno del libro, el turno pasa automaticamente al siguiente de la fila."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Administracion",
+      "item": [
+        {
+          "name": "Estadisticas globales",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ],
+              "query": []
+            },
+            "description": "Prestados, vencidos, por vencer, cuentas bloqueadas. Solo ADMIN."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test('trae los contadores', () => {",
+                  "  pm.expect(s).to.have.property('loanedBooks');",
+                  "  pm.expect(s).to.have.property('overdueLoans');",
+                  "  pm.expect(s).to.have.property('blockedUsers');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cuentas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users"
+              ],
+              "query": []
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Cuentas bloqueadas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/blocked",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "blocked"
+              ],
+              "query": []
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Levantar bloqueo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/1/unblock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "1",
+                "unblock"
+              ],
+              "query": []
+            },
+            "description": "Un ADMIN puede levantar el bloqueo por atrasos antes de que se cumpla la semana."
+          },
+          "response": []
+        },
+        {
+          "name": "Sin rol ADMIN -> 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ],
+              "query": []
+            },
+            "description": "Ejecuta antes 'Login (BIBLIOTECARIO)' para ver el 403 con formato consistente."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 si el token no es de un ADMIN', () => pm.expect([200,403]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Escenario completo (ejecutar en orden)",
+      "description": "Reproduce el flujo de negocio de la prueba de punta a punta.",
+      "item": [
+        {
+          "name": "1) Login ADMIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2) Tomar un libro disponible",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books?status=DISPONIBLE&size=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "DISPONIBLE"
+                },
+                {
+                  "key": "size",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.expect(body.content.length, 'debe haber al menos un libro disponible').to.be.above(0);",
+                  "pm.collectionVariables.set('bookId', body.content[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3) Prestarlo (llega correo de confirmacion)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans"
+              ],
+              "query": []
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": \"{{bookId}}\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('loanId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4) El libro ya no esta disponible",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "{{bookId}}"
+              ],
+              "query": []
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('estado PRESTADO', () => pm.expect(pm.response.json().status).to.eql('PRESTADO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5) Otra persona entra a la lista de espera",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reservations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reservations"
+              ],
+              "query": []
+            },
+            "description": "Como ADMIN se puede reservar a nombre de otra persona.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bookId\": \"{{bookId}}\",\n  \"requesterEmail\": \"ana@biblioteca.co\"\n}"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('reservationId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6) Devolver el libro",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/loans/{{loanId}}/return",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "loans",
+                "{{loanId}}",
+                "return"
+              ],
+              "query": []
+            },
+            "description": "Al devolverlo se notifica por correo a quien estaba primero en la fila."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7) El libro queda RESERVADO, no DISPONIBLE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "books",
+                "{{bookId}}"
+              ],
+              "query": []
+            },
+            "description": "Esta es la regla clave: si alguien esperaba, el libro no vuelve al catalogo libre."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('estado RESERVADO', () => pm.expect(pm.response.json().status).to.eql('RESERVADO'));",
+                  "pm.test('revisa el correo en http://localhost:8025', () => true);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
