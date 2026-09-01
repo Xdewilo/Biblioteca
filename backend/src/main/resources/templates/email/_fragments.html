@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!-- Cabecera comun. Estilos en linea porque los clientes de correo ignoran <style> externo. -->
+<div th:fragment="header(heading, accent)" th:remove="tag">
+    <tr>
+        <td style="padding:28px 32px;border-radius:12px 12px 0 0;"
+            th:style="'padding:28px 32px;border-radius:12px 12px 0 0;background:' + ${accent} + ';'">
+            <p style="margin:0;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.75);">
+                Anaquel
+            </p>
+            <h1 style="margin:6px 0 0;font-size:23px;line-height:1.3;color:#ffffff;font-weight:700;"
+                th:text="${heading}">Titulo</h1>
+        </td>
+    </tr>
+</div>
+
+<!-- Ficha del libro reutilizada en todos los correos -->
+<div th:fragment="bookCard" th:remove="tag">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+           style="margin:8px 0 20px;background:#f6f7f9;border-radius:10px;">
+        <tr>
+            <td th:if="${coverUrl}" style="padding:16px 0 16px 16px;vertical-align:top;width:88px;">
+                <img th:src="${coverUrl}" alt="" width="72"
+                     style="display:block;width:72px;border-radius:6px;border:1px solid #e2e5ea;"/>
+            </td>
+            <td style="padding:16px;vertical-align:top;">
+                <p style="margin:0;font-size:16px;font-weight:700;color:#101828;" th:text="${bookTitle}">Libro</p>
+                <p style="margin:4px 0 0;font-size:14px;color:#475467;" th:text="${bookAuthor}">Autor</p>
+                <p style="margin:8px 0 0;font-size:12px;color:#98a2b3;letter-spacing:.04em;"
+                   th:text="'ISBN ' + ${bookIsbn}">ISBN</p>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- Pie comun -->
+<div th:fragment="footer" th:remove="tag">
+    <tr>
+        <td style="padding:20px 32px 28px;border-top:1px solid #eaecf0;">
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#98a2b3;">
+                Este es un correo automatico del sistema de prestamos.
+                Puedes revisar tus prestamos en
+                <a th:href="${appUrl}" th:text="${appUrl}"
+                   style="color:#2563eb;text-decoration:none;">la aplicacion</a>.
+            </p>
+        </td>
+    </tr>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Prestamo vencido</title>
+</head>
+<body style="margin:0;padding:24px 12px;background:#f2f4f7;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
+
+    <th:block th:replace="~{email/_fragments :: header('Tu prestamo esta vencido', '#b42318')}"></th:block>
+
+    <tr>
+        <td style="padding:28px 32px 4px;">
+            <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#344054;">
+                Hola <strong th:text="${borrowerName}">Nombre</strong>, este prestamo vencio hace
+                <strong th:text="${daysOverdue}">3</strong>
+                <span th:text="${daysOverdue == 1} ? 'dia' : 'dias'">dias</span>.
+            </p>
+
+            <th:block th:replace="~{email/_fragments :: bookCard}"></th:block>
+
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+                   style="background:#fef3f2;border:1px solid #fecdca;border-radius:10px;">
+                <tr>
+                    <td style="padding:18px;font-size:14px;color:#912018;line-height:1.6;">
+                        La fecha limite era el <strong th:text="${dueDate}">15 de enero</strong>.
+                        Cuando lo devuelvas quedara registrado como atraso; al tercero en 90 dias
+                        la cuenta se bloquea una semana.
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <th:block th:replace="~{email/_fragments :: footer}"></th:block>
+</table>
+</body>
+</html>
