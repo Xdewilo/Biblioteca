@@ -1,0 +1,196 @@
+<!-- by Jeremy Posada -->
+<div appReveal=".tome:not(.tome--ghost)" [revealKey]="ids()">
+  <header class="head head--row">
+    <div>
+      <h1 class="head__title">Catálogo</h1>
+      <p class="head__sub">
+        Busca por título, autor o ISBN. Si un libro está prestado, entra a la lista de espera y te avisamos por
+        correo en cuanto lo devuelvan.
+      </p>
+    </div>
+    @if (auth.isAdmin()) {
+      <button type="button" class="btn btn--ink" (click)="alta.set(true)">
+        <app-icon name="plus" [size]="16" />
+        Añadir libro
+      </button>
+    }
+  </header>
+
+  @if (auth.user(); as user) {
+    @if (user.blocked) {
+      <app-note tone="warn">
+        Tu cuenta está bloqueada para nuevos préstamos{{ user.blockedReason ? ' (' + user.blockedReason + ')' : '' }}.
+        Puedes seguir consultando el catálogo.
+      </app-note>
+    }
+  }
+
+  <div class="bar">
+    <label class="search bar__grow">
+      <app-icon name="search" [size]="17" />
+      <input
+        class="search__in"
+        [value]="texto()"
+        placeholder="Título, autor o ISBN"
+        aria-label="Buscar en el catálogo"
+        (input)="buscar($any($event.target).value)"
+      />
+      @if (texto()) {
+        <button type="button" class="search__clear" aria-label="Limpiar búsqueda" (click)="buscar('')">
+          <app-icon name="x" [size]="14" />
+        </button>
+      }
+    </label>
+
+    <app-segmented label="Filtrar por estado" [options]="FILTROS" [value]="estado()" (valueChange)="filtrar($event)" />
+  </div>
+
+  @if (libros.loading() && !libros.data()) {
+    <app-shelf-skeleton [count]="POR_PAGINA" />
+  }
+  @if (!libros.loading() && libros.error(); as error) {
+    <app-failed [message]="error" (retry)="libros.recargar()" />
+  }
+
+  @if (!libros.error() && libros.data(); as data) {
+    @if (data.content.length === 0) {
+      <app-empty
+        icon="shelf"
+        [message]="hayFiltro() ? 'No hay libros que coincidan con la búsqueda.' : 'El catálogo está vacío.'"
+        [hint]="
+          hayFiltro()
+            ? 'Prueba con otra palabra o quita el filtro de estado.'
+            : auth.isAdmin()
+              ? 'Añade el primer libro con su ISBN: el resto lo completa Open Library.'
+              : null
+        "
+      />
+    } @else {
+      <div class="grid grid--shelf" [class.grid--busy]="libros.loading()" [attr.aria-busy]="libros.loading()">
+        @for (libro of data.content; track libro.id) {
+          <article class="card tome">
+            <app-cover [url]="libro.coverUrl" [isbn]="libro.isbn" [title]="libro.title" />
+
+            <div class="tome__in">
+              <div class="tome__title" [title]="libro.title">{{ libro.title }}</div>
+              <div class="tome__author">{{ libro.author }}</div>
+              <div class="tome__isbn">
+                {{ libro.isbn }}{{ libro.publicationYear ? ' · ' + libro.publicationYear : '' }}
+              </div>
+
+              @if (libro.subjects.length > 0) {
+                <div class="tome__tags">
+                  @for (s of libro.subjects.slice(0, 2); track s) {
+                    <span class="tag">{{ s }}</span>
+                  }
+                </div>
+              }
+
+              <div class="tome__status"><app-chip [status]="libro.status" /></div>
+
+              <div class="tome__acts">
+                @switch (situacion(libro)) {
+                  @case ('mio') {
+                    <span class="chip chip--ok"><app-icon name="check" [size]="12" /> En tus manos</span>
+                    <a class="btn btn--bare btn--s" routerLink="/mis-prestamos">Devolver</a>
+                  }
+                  @case ('recoger') {
+                    <button type="button" class="btn btn--main btn--s" [disabled]="ocupado() === libro.id" (click)="recoger(libro)">
+                      @if (ocupado() === libro.id) {
+                        <span class="spin" aria-hidden="true"></span>
+                      } @else {
+                        <app-icon name="check" [size]="15" />
+                      }
+                      Recogerlo
+                    </button>
+                  }
+                  @case ('en-fila') {
+                    <span class="chip chip--info">En la fila{{ miReserva(libro)?.queuePosition ? ' · puesto ' + miReserva(libro)?.queuePosition : '' }}</span>
+                    <button type="button" class="btn btn--bare btn--s" [disabled]="ocupado() === libro.id" (click)="salirDeLaFila(libro)">
+                      Salir
+                    </button>
+                  }
+                  @case ('pedir') {
+                    <button
+                      type="button"
+                      class="btn btn--main btn--s"
+                      [disabled]="ocupado() === libro.id || auth.user()?.blocked"
+                      [title]="auth.user()?.blocked ? 'Tu cuenta está bloqueada para nuevos préstamos' : null"
+                      (click)="prestar(libro)"
+                    >
+                      @if (ocupado() === libro.id) {
+                        <span class="spin" aria-hidden="true"></span>
+                      }
+                      Pedir
+                    </button>
+                  }
+                  @case ('esperar') {
+                    <button
+                      type="button"
+                      class="btn btn--line btn--s"
+                      [disabled]="ocupado() === libro.id || auth.user()?.blocked"
+                      [title]="auth.user()?.blocked ? 'Tu cuenta está bloqueada' : 'Te avisamos por correo cuando lo devuelvan'"
+                      (click)="esperar(libro)"
+                    >
+                      @if (ocupado() === libro.id) {
+                        <span class="spin" aria-hidden="true"></span>
+                      }
+                      Esperar turno
+                    </button>
+                  }
+                }
+
+                @if (auth.isAdmin() && libro.status === 'DISPONIBLE' && situacion(libro) === 'pedir') {
+                  <button
+                    type="button"
+                    class="btn btn--bare btn--s"
+                    [disabled]="ocupado() === libro.id"
+                    (click)="porQuitar.set(libro)"
+                  >
+                    Quitar
+                  </button>
+                }
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+
+      <div class="pager">
+        <button type="button" class="btn btn--line btn--s" [disabled]="pagina() === 0" (click)="pagina.set(pagina() - 1)">
+          <app-icon name="arrow-left" [size]="15" /> Anterior
+        </button>
+        <span>
+          Página {{ data.number + 1 }} de {{ data.totalPages || 1 }} · {{ data.totalElements }}
+          {{ data.totalElements === 1 ? 'libro' : 'libros' }}
+        </span>
+        <button
+          type="button"
+          class="btn btn--line btn--s"
+          [disabled]="pagina() + 1 >= data.totalPages"
+          (click)="pagina.set(pagina() + 1)"
+        >
+          Siguiente <app-icon name="arrow-right" [size]="15" />
+        </button>
+      </div>
+    }
+  }
+
+  @if (alta()) {
+    <app-book-form-dialog (closed)="alta.set(false)" (created)="creado()" />
+  }
+
+  @if (porQuitar(); as libro) {
+    <app-confirm
+      title="Sacar del catálogo"
+      confirmLabel="Sí, quitarlo"
+      [danger]="true"
+      [busy]="ocupado() === libro.id"
+      (confirmed)="quitar(libro)"
+      (cancelled)="porQuitar.set(null)"
+    >
+      <strong class="ink">«{{ libro.title }}»</strong> dejará de aparecer en el catálogo. Solo se pueden quitar libros
+      que no estén prestados ni reservados.
+    </app-confirm>
+  }
+</div>
