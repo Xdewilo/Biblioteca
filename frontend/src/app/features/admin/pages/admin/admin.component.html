@@ -1,0 +1,147 @@
+<!-- by Jeremy Posada -->
+<div appReveal=".stat, .card__in > *" [revealKey]="revealKey()">
+  <header class="head">
+    <h1 class="head__title">Administración</h1>
+    <p class="head__sub">
+      El pulso de la biblioteca: qué está fuera, qué se pasó de fecha y a quién hay que soltarle el bloqueo.
+    </p>
+  </header>
+
+  @if (stats.loading()) {
+    <app-loading label="Contando…" />
+  } @else if (stats.error(); as error) {
+    <app-failed [message]="error" (retry)="stats.recargar()" />
+  } @else if (stats.data(); as s) {
+    <section class="grid grid--stats card--gap" aria-label="Estadísticas">
+      <app-stat label="Libros" [value]="s.totalBooks" hint="en el catálogo" />
+      <app-stat label="Disponibles" [value]="s.availableBooks" tone="ok" hint="en la estantería" />
+      <app-stat label="Prestados" [value]="s.loanedBooks" tone="warn" hint="fuera ahora mismo" />
+      <app-stat label="Vencidos" [value]="s.overdueLoans" tone="bad" hint="pasados de fecha" />
+      <app-stat label="Por vencer" [value]="s.dueSoonLoans" hint="en los próximos días" />
+      <app-stat label="En fila" [value]="s.pendingReservations" hint="reservas pendientes" />
+      <app-stat label="Cuentas" [value]="s.totalUsers" hint="registradas" />
+      <app-stat label="Bloqueadas" [value]="s.blockedUsers" tone="bad" hint="por tres atrasos" />
+    </section>
+
+    <section class="card card--gap">
+      <div class="card__in">
+        <h2 class="card__h">
+          <app-icon name="unlock" [size]="18" />
+          Cuentas bloqueadas
+          @if (s.blockedAccounts.length > 0) {
+            <app-chip tone="bad">{{ s.blockedAccounts.length }}</app-chip>
+          }
+        </h2>
+
+        @if (s.blockedAccounts.length === 0) {
+          <app-empty icon="check" message="Ninguna cuenta está bloqueada ahora mismo." />
+        } @else {
+          <app-note tone="info" [icon]="null">
+            El bloqueo caduca solo al cumplirse el plazo. Aquí puedes levantarlo antes si hace falta.
+          </app-note>
+          <div class="scroll-x">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Cuenta</th>
+                  <th>Motivo</th>
+                  <th>Hasta</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (c of s.blockedAccounts; track c.id) {
+                  <tr>
+                    <td>
+                      <strong>{{ c.name }}</strong>
+                      <div class="soft small">{{ c.email }}</div>
+                    </td>
+                    <td class="soft">{{ c.blockedReason ?? '—' }}</td>
+                    <td class="nowrap">{{ fechaHora(c.blockedUntil) }}</td>
+                    <td>
+                      <div class="acts">
+                        <button type="button" class="btn btn--line btn--s" [disabled]="ocupado() === c.id" (click)="levantar(c.id, c.email)">
+                          @if (ocupado() === c.id) {
+                            <span class="spin" aria-hidden="true"></span>
+                          } @else {
+                            <app-icon name="unlock" [size]="15" />
+                          }
+                          Levantar bloqueo
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="card">
+    <div class="card__in">
+      <h2 class="card__h">
+        <app-icon name="loans" [size]="18" />
+        Libros fuera
+        @if (activos().length > 0) {
+          <app-chip tone="mute">{{ activos().length }}</app-chip>
+        }
+        @if (vencidos().length > 0) {
+          <app-chip tone="bad">{{ vencidos().length }} vencidos</app-chip>
+        }
+      </h2>
+
+      @if (prestamos.loading()) {
+        <app-loading />
+      } @else if (prestamos.error(); as error) {
+        <app-failed [message]="error" (retry)="prestamos.recargar()" />
+      } @else if (activos().length === 0) {
+        <app-empty icon="check" message="Todos los libros están en la estantería." />
+      } @else {
+        <div class="scroll-x">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Libro</th>
+                <th>Quién lo tiene</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+                <th>Plazo</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of activos(); track p.id) {
+                <tr [class.tbl__row--bad]="p.overdue">
+                  <td>
+                    <div class="book-cell">
+                      <app-cover [url]="p.bookCoverUrl" [isbn]="p.bookIsbn" [title]="p.bookTitle" size="thumb" />
+                      <div>
+                        <strong class="serif">{{ p.bookTitle }}</strong>
+                        <div class="faint tiny">{{ p.bookIsbn }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {{ p.borrowerName }}
+                    <div class="soft small">{{ p.borrowerEmail }}</div>
+                  </td>
+                  <td class="nowrap">{{ fecha(p.loanDate) }}</td>
+                  <td class="nowrap">{{ fecha(p.dueDate) }}</td>
+                  <td>
+                    @if (p.overdue) {
+                      <app-chip tone="bad">Vencido · {{ p.daysOverdue }}d</app-chip>
+                    } @else {
+                      <app-chip [tone]="tonoPlazo(p)">{{ venceEn(p.dueDate) }}</app-chip>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </section>
+</div>
